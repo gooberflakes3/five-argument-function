@@ -23,10 +23,10 @@ class Prop {
                 material = new THREE.MeshStandardMaterial( { color: this.c, side: THREE.DoubleSide } );
                 break
             case "plane":
-                // const textureLoader = new THREE.TextureLoader(); you need a server for this dumbass.
-                // const texture = textureLoader.load('./hi.png');
+                const textureLoader = new THREE.TextureLoader(); you need a server for this dumbass.
+                const texture = textureLoader.load('./hi.png');
                 geometry = new THREE.PlaneGeometry( this.w, this.h );
-                material = new THREE.MeshStandardMaterial( { color: this.c, /*map: texture,*/ side: THREE.DoubleSide } );
+                material = new THREE.MeshStandardMaterial( { /*color: this.c*/, map: texture, side: THREE.DoubleSide } );
                 break
             case "sphere":
                 geometry = new THREE.SphereGeometry(this.r, 16, 16)
