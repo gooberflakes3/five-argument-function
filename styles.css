@@ -1,0 +1,12 @@
+/* style.css */
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    overflow: hidden; /* Hides scrollbars if they appear */
+}
+
+canvas {
+    display: block; /* Helps with alignment issues */
+}

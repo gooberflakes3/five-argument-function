@@ -1,0 +1,232 @@
+try {
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize( window.innerWidth, window.innerHeight );
+document.body.appendChild( renderer.domElement );
+
+// Create a physics world
+let world = new CANNON.World();
+world.gravity.set(0, -9.82, 0); // gravity along Y axis
+
+// Create ground plane
+let groundBody = new CANNON.Body({
+  mass: 0 // static
+});
+groundBody.addShape(new CANNON.Plane());
+groundBody.quaternion.setFromEuler(-Math.PI/2, 0, 0); // rotate to lie flat
+groundBody.position.set(0, -5, 0);
+world.addBody(groundBody);
+
+let objects = []
+
+function makeNewObject(type, i, l, w, h, c, x, y, z, rx, ry, rz, usePhysics) {
+    let geometry, material
+    switch (type) {
+        case "cube":
+            geometry = new THREE.BoxGeometry( w, h, l );
+            material = new THREE.MeshBasicMaterial( { color: c } );
+            break
+        case "plane":
+            geometry = new THREE.PlaneGeometry( w, h );
+            material = new THREE.MeshBasicMaterial( { color: c, side: THREE.DoubleSide } );
+            break
+    }
+    const object = new THREE.Mesh( geometry, material );
+    scene.add( object );
+    object.position.x = x
+    object.position.y = y
+    object.position.z = z
+    object.rotation.x = rx * (180 / Math.PI);
+    object.rotation.y = ry * (180 / Math.PI);
+    object.rotation.z = rz * (180 / Math.PI);
+
+    let physicsBody = null;
+
+    if (usePhysics) {
+        // Example with Cannon.js
+        if (type === "cube") {
+            let shape = new CANNON.Box(new CANNON.Vec3(w/2, h/2, l/2));
+            physicsBody = new CANNON.Body({ mass: 1 });
+            physicsBody.addShape(shape);
+            physicsBody.position.set(x, y, z);
+            physicsBody.quaternion.setFromEuler(rx * (180 / Math.PI), ry * (180 / Math.PI), rz * (180 / Math.PI)) // FIX THIS YOU DIMWITTED FOOL!!!
+            world.addBody(physicsBody);
+        } else if (type === "plane") {
+            let shape = new CANNON.Plane();
+            physicsBody = new CANNON.Body({ mass: 0 }); // static floor
+            physicsBody.addShape(shape);
+            physicsBody.position.set(x, y, z);
+            world.addBody(physicsBody);
+        }
+    }
+
+    // Store both mesh and physics body together
+    objects.push({ object, i, body: physicsBody });
+}
+
+makeNewObject("cube", "physics", 1,1,1, 0xff0000, 0,3,0, 45,45,45, true)
+
+makeNewObject("cube", 0, 2,1,1, 0xff0000, -2,-1,0,  0,0,0, false)
+makeNewObject("cube", 1, 1,2,1, 0x00ff00, 0,-1,0,  0,0,0, false)
+makeNewObject("cube", 2, 1,1,2, 0x0000ff, 2,-1,0,  0,0,0, false)
+
+makeNewObject("plane", 3, 2,1,1, 0xffff00, -2,1,0,  0,0,0, false)
+makeNewObject("plane", 4, 1,2,1, 0x00ffff, 0,1,0,  0,0,0, false)
+makeNewObject("plane", 5, 1,1,2, 0xff00ff, 2,1,0,  0,0,0, false)
+
+makeNewObject("cube", "rotator", 1,1,1, 0x008080, -5,0,0,  15,15,15, false)
+
+makeNewObject("plane", "ground", 0,50,50, 0xdddddd, 0,-3,0, 90,0,0, false)
+
+class gameObject { // perfectly generic object.
+    constructor(index, position, rotation, color, geometry, material, physicsBody) {
+        this.index = index
+        this.color = color
+        this.x = position[0]
+        this.y = position[1]
+        this.z = position[2]
+        this.rx = rotation[0]
+        this.ry = rotation[1]
+        this.rz = rotation[2]
+        const object = new THREE.Mesh( geometry, material );
+        scene.add( object );
+        object.position.x = position[0]
+        object.position.y = position[1]
+        object.position.z = position[2]
+        object.rotation.x = rotation[0] * (180 / Math.PI);
+        object.rotation.y = rotation[1] * (180 / Math.PI);
+        object.rotation.z = rotation[2] * (180 / Math.PI);
+        this.mesh = object;
+        this.body = physicsBody;
+        objects.push({ object, index, body: physicsBody });
+    }
+}
+
+class Mesh extends gameObject {
+    constructor(type, length, width, height, index, position, rotation, color, physicsBody) {
+        let geometry, material
+        super(index, position, rotation, color, geometry, material, physicsBody)
+        if (type !== "plane") { this.l = length }
+        this.w = width
+        this.h = height
+
+        switch (type) {
+        case "cube":
+            geometry = new THREE.BoxGeometry( this.w, this.h, this.l );
+            material = new THREE.MeshBasicMaterial( { color: color } );
+            break
+        case "plane":
+            geometry = new THREE.PlaneGeometry( this.w, this.h );
+            material = new THREE.MeshBasicMaterial( { color: color, side: THREE.DoubleSide } );
+            break
+        }
+    }
+}
+
+class PhysicsMesh extends Mesh {
+    constructor(type, length, width, height, index, position, rotation, color) {
+        let physicsBody = null
+                // Example with Cannon.js
+        if (type === "cube") {
+            let shape = new CANNON.Box(new CANNON.Vec3(width/2, height/2, length/2));
+            physicsBody = new CANNON.Body({ mass: 1 });
+            physicsBody.addShape(shape);
+            physicsBody.position.set(position[0], position[1], position[2]);
+            physicsBody.quaternion.setFromEuler(rotation[0] * (180 / Math.PI), rotation[1] * (180 / Math.PI), rotation[2] * (180 / Math.PI))
+            world.addBody(physicsBody);
+        } else if (type === "plane") {
+            let shape = new CANNON.Plane();
+            physicsBody = new CANNON.Body({ mass: 0 }); // static floor
+            physicsBody.addShape(shape);
+            physicsBody.position.set(position[0], position[1], position[2]);
+            world.addBody(physicsBody);
+        }
+        super(type, length, width, height, index, position, rotation, color, physicsBody)
+    }
+}
+
+let thingy = new Mesh("cube", 1, 1, 1, "thing", [5, 5, 5], [45, 45, 45], 0xaa00aa, null)
+
+makeNewObject("plane", 10, 1, 1, 1, 0xffffff, 5, 5, 5, 0, 0, 0, false)
+
+camera.position.z = 5;
+
+function locateObjectFromIndex(i) {
+    let target = i;
+
+    let foundRow = objects.find(row => row.i === target);
+
+    if (foundRow) {
+        return foundRow.object
+    }
+}
+
+// Create controls
+const controls = new THREE.PointerLockControls(camera, document.body);
+
+// Add to scene (optional, but good practice)
+scene.add(controls.getObject());
+
+// Enable pointer lock on click
+document.body.addEventListener('click', () => {
+  controls.lock();
+});
+
+let keys = {}
+document.addEventListener("keydown", function(e) {
+    keys[e.code] = true;
+});
+
+document.addEventListener("keyup", function(e) {
+    delete keys[e.code];
+});
+
+function handleKeys() {
+    const speed = 0.05;
+
+    const forward = new THREE.Vector3();
+    camera.getWorldDirection(forward);
+
+    const right = new THREE.Vector3();
+    right.crossVectors(forward, camera.up).normalize();
+
+    if (keys["KeyW"]) {
+        controls.getObject().position.add(forward.clone().multiplyScalar(speed));
+    }
+    if (keys["KeyS"]) {
+        controls.getObject().position.add(forward.clone().multiplyScalar(-speed));
+    }
+    if (keys["KeyA"]) {
+        controls.getObject().position.add(right.clone().multiplyScalar(-speed));
+    }
+    if (keys["KeyD"]) {
+        controls.getObject().position.add(right.clone().multiplyScalar(speed));
+    }
+}
+
+  // sync ground mesh with ground body
+  locateObjectFromIndex("ground").position.copy(groundBody.position);
+  locateObjectFromIndex("ground").quaternion.copy(groundBody.quaternion);
+
+function animate() {
+    handleKeys()
+    
+    // Step physics world
+    world.step(1/60);
+    objects.forEach(obj => {
+        if (obj.body) {
+            obj.object.position.copy(obj.body.position);
+            obj.object.quaternion.copy(obj.body.quaternion);
+        }
+    });
+    
+    locateObjectFromIndex("rotator").rotation.x += 0.01
+    renderer.render( scene, camera );
+}
+renderer.setAnimationLoop( animate );
+
+} catch (error) {
+    alert(`${error}\n---\n${error.stack}`)
+}
